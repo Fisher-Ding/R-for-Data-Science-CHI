@@ -1,0 +1,206 @@
+---
+title: "Correlation Analysis"
+author: "Dean Hawk"
+date: "2024-03-27"
+output: html_document
+---
+
+# Correlation Analysis
+
+## Preliminary Preparation
+
+```{r}
+# Load packages
+pacman::p_load(ggcorrplot,corrmorant)
+library(tidyverse)
+library(ggplot2)
+# install.packages("ggcorrplot")
+library(ggcorrplot) # Heatmap
+# install.packages("corrplot")
+library(corrplot) # Heatmap
+# install.packages("pheatmap")
+library(pheatmap) # Heatmap
+# install.packages("circlize")
+library(circlize) # Chord diagram
+# library(plotly,warn.conflicts = flase)
+# devtools::install_github("thomasp85/scico")
+library(scico) # Create a palette using the "scico" package
+library(psych)
+library(magrittr)
+library(corrmorant) # Create visualizations of correlation matrices?
+
+# Data loading
+dt <- mtcars
+
+# Convert the correlation matrix to a data frame
+# correlation_df <- as.data.frame(correlation_matrix)
+```
+
+## Pearson Correlation CoefficientThe Pearson correlation coefficient is used to assess the strength and direction of the linear relationship between two continuous variables.
+
+```{r}
+# Calculate the Pearson correlation coefficient matrix using the cor function
+pearson_cor_matrix <- cor(dt[, c("disp", "mpg", "cyl")],method = "pearson")
+print(pearson_cor_matrix)
+```
+
+## Spearman Rank Correlation CoefficientThe Spearman rank correlation coefficient does not assume that the data are normally distributed. It is suitable for continuous or ordinal categorical variables and calculates correlation based on the ranks of the original data.
+
+```{r}
+# Calculate the Spearman rank correlation coefficient: spearman_cor <- cor(x, y, method = "spearman")
+spearman_cor_matrix <-cor(dt[, c("disp", "mpg", "cyl")],method = "spearman")
+print(spearman_cor_matrix)
+```
+
+## Kendall Rank Correlation CoefficientThe Kendall rank correlation coefficient is another non-parametric measure of correlation, suitable for small samples or ordinal categorical variables.
+
+```{r}
+# Calculate the Kendall rank correlation coefficient: kendall_cor <- cor(x, y, method = "kendall")
+kendall_cor_matrix <- cor(dt[, c("disp", "mpg", "cyl")],method = "kendall")
+print(kendall_cor_matrix)
+```
+
+## Visualizing Correlation Matrices (Correlation Heatmaps)If you have multiple variables and want to assess the correlations between them simultaneously, you can create a correlation matrix and visualize it using a heatmap.
+
+```{r}
+# Assume data is a data frame containing multiple variables
+cor_matrix <- cor(dt, method = "pearson")
+
+# Use the ggplot2 package to draw a heatmap
+library(ggplot2)
+library(reshape2)
+
+# Convert the correlation matrix to long format
+cor_melt <- melt(cor_matrix)
+
+# Draw the heatmap
+ggplot(cor_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limit = c(-1, 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Use ggplot2 to draw a heatmap
+ggplot(cor_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "", fill = "Correlation")
+
+# Draw a heatmap using ggcorrplot()
+ggcorrplot(cor_matrix)
+ggcorrplot(cor_matrix,method = "circle",lab=T)
+
+# Draw a heatmap using corrplot()
+corrplot(cor_matrix)
+
+corrplot(cor_matrix, method = "circle", 
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45)
+
+# Change parameters, method = "ellipse", type = "upper".
+corrplot(cor_matrix, method = "ellipse", 
+         type = "upper",
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45)
+# method and type have other options, modify according to needs
+# method = c("circle", "square", "ellipse", "number", "shade", "color", "pie")
+# type = c("full", "lower", "upper")
+
+# Combination, display correlation coefficients in the lower left and ellipse graphics in the upper right
+corrplot(cor_matrix, method = "ellipse", type = "upper",
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45, tl.pos = "lt")
+
+corrplot(cor_matrix, method = "number", type = "lower",
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",add = T)
+
+# Change color, add a custom color
+addcol <- colorRampPalette(c("red", "white", "blue"))
+corrplot(cor_matrix, method = "pie", type = "upper",col = addcol(100), 
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45,
+         tl.pos = "lt")
+
+corrplot(cor_matrix, method = "number", type = "lower",col = addcol(100), 
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",
+         add = T)
+
+# Add statistical significance stars
+testRes = cor.mtest(dt, method="pearson",conf.level = 0.95)
+corrplot(cor_matrix, method = "color", col = addcol(100), 
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45,tl.pos = "lt",
+         p.mat = testRes$p, diag = T, type = 'upper',
+         sig.level = c(0.001, 0.01, 0.05), pch.cex = 1.2,
+         insig = 'label_sig', pch.col = 'grey20', order = 'AOE')
+
+corrplot(cor_matrix, method = "number", type = "lower",col = addcol(100), 
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",order = 'AOE',
+         add = T)
+
+```
+
+```{r}
+# Draw a heatmap using pheatmap()
+scico_palette_show()
+mycol <- scico(1000, palette = "vik") # Create a palette using the "scico" package
+
+pheatmap(cor_matrix, 
+         show_colnames = TRUE,   # Whether to display column names
+         show_rownames=TRUE,     # Whether to display row names
+         fontsize=13,             # Font size
+         color = colorRampPalette(c('#00185A','#286391','#E9E1DB','#AB5A2B','#501008'))(50), # Specify the colors for the heatmap
+         # color = mycol,
+         annotation_legend=TRUE, # Whether to display the legend
+         border_color=NA,        # Border color NA means no border
+         scale="none",           # Specify the normalization method. "row" normalizes by row, "column" by column, "none" means no processing
+         cluster_rows = TRUE,    # Whether to cluster rows
+         cluster_cols = TRUE     # Whether to cluster columns
+)
+
+```
+
+```{r}
+# Convert the correlation coefficient matrix to wide format, with row names as environmental variables,
+# column names as species, and values as correlation coefficients
+rvalue <- df %>%
+  select(1, 2, 3) %>%
+  pivot_wider(names_from = genus, values_from = r) %>%
+  column_to_rownames(var = "env")
+
+# Convert the significance symbol matrix to wide format, with row names as environmental variables,
+# column names as species, and values as significance symbols
+pvalue <- df %>%
+  select(1, 2, 5) %>%
+  pivot_wider(names_from = genus, values_from = p_signif) %>%
+  column_to_rownames(var = "env")
+
+mycol <- scico(100, palette = "vik")
+
+# Draw a heatmap, showing correlation coefficients, clustering rows and columns, no border,
+# displaying p-values as numbers, setting font size and color for numbers,
+# setting the main title to a space, setting cell width and height, and using a custom color map
+pheatmap(cor_matrix, 
+         scale = "none", 
+         cluster_row = TRUE, 
+         cluster_col = TRUE, 
+         border = NA,
+         # display_numbers = pvalue, 
+         fontsize_number = 12, 
+         number_color = "white",
+         main = " ",
+         cellwidth = 21, 
+         cellheight = 20, 
+         color = mycol
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

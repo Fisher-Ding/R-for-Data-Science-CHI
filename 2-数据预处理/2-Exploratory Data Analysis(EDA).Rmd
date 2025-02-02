@@ -1,0 +1,248 @@
+---
+title: "Exploratory Data Analysis(EDA)"
+author: "Dean Hawk"
+date: "2024-07-23"
+output: html_document
+---
+
+## Table of Contents：Exploratory Data Analysis(EDA)
+	•	Graphics Package
+	•	DataExplorer Package
+	•	GGally Package: ggpairs()
+
+## Graphics Package
+
+1.Bar Plot(`barplot()`)
+2.Box Plot(`boxplot()`)
+3.Histogram(`hist()`)
+4.Scatter Plot Matrix(`pairs()`)
+
+```{r}
+# Load necessary packages
+rm(list = ls())  # Clear the environment
+# install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  graphics
+)
+
+# Data import
+data <- mtcars
+
+# 1. Bar Plot (barplot())
+# Create a bar plot for the number of cylinders in the mtcars dataset
+cylinder_counts <- table(data$cyl)  # Count the occurrences of each cylinder type
+barplot(cylinder_counts, main = "Bar Plot of Cylinder Counts", xlab = "Number of Cylinders", ylab = "Frequency")
+
+# 2. Box Plot (boxplot())
+# Create a box plot for the mtcars dataset
+boxplot(data, main = "Box Plot of mtcars Dataset", ylab = "Values")
+
+# 3. Histogram (hist())
+# Create a histogram for the 'mpg' column in the mtcars dataset
+hist(data$mpg, main = "Histogram of MPG", xlab = "Miles per Gallon", col = "lightblue")
+
+# 4. Scatter Plot Matrix (pairs())
+# Create a scatter plot matrix for the first 4 columns of the mtcars dataset
+pairs(data %>% select(1:4), main = "Scatter Plot Matrix of mtcars (First 4 Columns)")
+
+# Custom Scatter Plot with Regression Line
+# Create a scatter plot with a regression line for 'wt' vs 'mpg'
+plot(data$wt, data$mpg, 
+     main = "Scatterplot of Weight vs MPG with Regression Line",
+     xlab = "Weight (1000 lbs)",
+     ylab = "Miles per Gallon",
+     pch = 19,  # Solid circle
+     col = "blue")
+abline(lm(mpg ~ wt, data = data), col = "red", lwd = 2)  # Add regression line
+
+# Custom Panels in pairs()
+# Define a custom histogram panel function
+panel.hist <- function(x, ...) {
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col = "cyan", ...)
+}
+
+# Define a custom scatter plot panel function with regression line
+panel.smooth <- function(x, y, ...) {
+    points(x, y, ...)
+    abline(lm(y ~ x), col = "blue")
+}
+
+# Create a scatter plot matrix with custom panels
+pairs(data[1:5], 
+      panel = panel.smooth,  # Custom scatter plot panel
+      diag.panel = panel.hist,  # Custom histogram panel
+      main = "Custom Scatter Plot Matrix with Histograms",
+      pch = 24,  # Triangle
+      bg = "light blue", 
+      cex.labels = 2, 
+      font.labels = 2)
+
+```
+
+## DataExplorer Package
+
+```{r}
+# Clear the environment
+rm(list = ls())
+
+# Load the DataExplorer package
+# install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  DataExplorer
+)
+
+# Load the mtcars dataset
+d1 <- mtcars
+
+# Display the first few rows of the dataset
+head(d1)
+
+# Plot structure of the dataset
+DataExplorer::plot_str(d1)  # Visualize the structure of the dataset
+
+# Display basic information about the dataset
+DataExplorer::introduce(d1)  # Provide an overview of the dataset
+
+# Plot correlation heatmap
+DataExplorer::plot_correlation(d1)  # Visualize the correlation matrix as a heatmap
+
+# Plot box plots grouped by 'disp' (displacement)
+DataExplorer::plot_boxplot(d1, by = "disp")  # Create box plots for each variable grouped by displacement
+
+# Plot bar charts
+DataExplorer::plot_bar(d1)  # Create bar charts for categorical variables
+
+# Plot density plots
+DataExplorer::plot_density(d1)  # Create density plots for numerical variables
+
+# Plot histograms
+DataExplorer::plot_histogram(d1)  # Create histograms for numerical variables
+
+# Plot missing values
+DataExplorer::plot_missing(d1)  # Visualize missing values in the dataset
+
+# Plot scatter plots grouped by 'cyl' (number of cylinders)
+DataExplorer::plot_scatterplot(d1, by = "cyl")  # Create scatter plots for each variable grouped by the number of cylinders
+
+# Plot QQ plots
+DataExplorer::plot_qq(d1)  # Create QQ plots for numerical variables
+```
+
+## GGally Package：ggpairs()
+
+Matrix Section
+
+A pairwise matrix has three main sections:`lower`,`upper`,and`diag`.The`lower`and`upper`sections can contain three types of plots:`continuous`,`combo`,and`discrete`.The`diag`section can only contain`continuous`or`discrete`.
+
+• continuous:Both X and Y are continuous variables.
+• combo:One of X and Y is discrete,and the other is continuous.
+• discrete:Both X and Y are discrete variables.
+To adjust each section,you can supply a list of information.The list can contain the following elements:
+• continuous:A string representing the tail end of a`ggally_NAME`function,or a custom function.
+• combo:A string representing the tail end of a`ggally_NAME`function,or a custom function.(Not applicable for the`diag`list)
+• discrete:A string representing the tail end of a`ggally_NAME`function,or a custom function.
+• mapping:If mapping is provided,only the mapping for that section will be overwritten.
+The current list of valid`ggally_NAME`functions can be seen in`vig_ggally("ggally_plots")`.
+
+```{r message=FALSE}
+# Load necessary libraries
+# install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  GGally
+)
+
+# Load the mtcars dataset
+d1 <- mtcars
+
+# Custom colors for the Iris dataset
+# Create a pairwise plot matrix for the Iris dataset with custom colors
+ggpairs(
+  iris, 
+  mapping = aes(color = Species),  # Color by species
+  lower = list(continuous = wrap("smooth")),  # Lower triangle: smooth scatter plot
+  progress = FALSE  # Disable progress bar
+) + 
+  scale_colour_manual(values = c('red', 'blue', 'orange')) +  # Custom colors for species
+  theme_bw()  # Use a black and white theme
+
+# Scatter plot matrix with regression lines, density plots, and correlation coefficients
+# Create a scatter plot matrix for the first 4 columns of the mtcars dataset
+ggpairs(
+  mtcars %>% select(1:4),  # Select the first 4 columns
+  title = "Pairs Plot of mtcars with Custom Panels",  # Title of the plot
+  upper = list(continuous = wrap("cor", size = 5)),  # Upper triangle: correlation coefficients
+  lower = list(continuous = wrap("smooth", alpha = 0.6), combo = "facetdensity"),  # Lower triangle: smooth scatter plot with density
+  diag = list(continuous = wrap("densityDiag")),  # Diagonal: density plots
+  progress = FALSE  # Disable progress bar
+) + 
+  theme_bw() +  # Use a black and white theme
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+# Scatter plot matrix with regression lines, histograms, and correlation coefficients
+# Create a scatter plot matrix for selected columns of the mtcars dataset
+ggpairs(
+  mtcars,
+  columns = c("mpg", "wt", "hp", "drat"),  # Select specific columns
+  lower = list(continuous = wrap("smooth", alpha = 0.6)),  # Lower triangle: smooth scatter plot
+  diag = list(continuous = wrap("barDiag", binwidth = 1)),  # Diagonal: histograms
+  progress = FALSE  # Disable progress bar
+) +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the title
+  theme_bw()  # Use a black and white theme
+
+# Custom diagonal plotting function and create a scatter plot matrix
+# Define a custom function for the diagonal panels
+custom_diag <- function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_histogram(aes(y = ..density..), color = "black", ...) +  # Histogram with density
+    geom_density(alpha = 0.5, ...)  # Overlay density plot
+}
+
+# Create a scatter plot matrix with custom diagonal panels
+p <- ggpairs(
+  d1,
+  columns = c(1, 3:7),  # Select specific columns
+  upper = list(continuous = wrap("cor", size = 8)),  # Upper triangle: correlation coefficients
+  lower = list(continuous = wrap("smooth")),  # Lower triangle: smooth scatter plot
+  diag = list(continuous = custom_diag),  # Diagonal: custom histogram and density plot
+  progress = FALSE  # Disable progress bar
+) %>% 
+  print()  # Print the plot
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

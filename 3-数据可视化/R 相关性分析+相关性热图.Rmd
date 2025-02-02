@@ -3,6 +3,8 @@ title: "R 相关性分析"
 author: "Dean Hawk"
 date: "2024-03-27"
 output: html_document
+editor_options: 
+  chunk_output_type: inline
 ---
 
 # 相关性分析
@@ -154,8 +156,8 @@ pheatmap(cor_matrix,
          show_colnames = TRUE,   # 是否显示列名
          show_rownames=TRUE,     # 是否显示行名
          fontsize=13,             # 字体大小
-         color = colorRampPalette(c('#00185A','#286391','#E9E1DB','#AB5A2B','#501008'))(50), # 指定热图的颜色
-         # color = mycol,
+         # color = colorRampPalette(c('#00185A','#286391','#E9E1DB','#AB5A2B','#501008'))(50), # 指定热图的颜色
+         color = mycol,
          annotation_legend=TRUE, # 是否显示图例
          border_color=NA,        # 边框颜色 NA表示没有
          scale="none",           # 指定归一化的方式。"row"按行归一化，"column"按列归一化，"none"不处理

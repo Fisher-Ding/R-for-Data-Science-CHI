@@ -1,0 +1,223 @@
+---
+title: "数据探索与可视化"
+author: "Dean Hawk"
+date: "2024-07-23"
+output: html_document
+---
+
+## graphics包
+
+### 1.条形图 barplot()
+### 2.箱线图 boxplot()
+### 3.直方图 hist()
+### 4.矩阵图 pairs()
+
+```{r}
+# load package
+rm(list = ls())
+library(tidyverse)
+library(graphics)
+
+# data import
+d1 <- mtcars
+
+# 条形图 barplot()
+count <- table(d1$cyl)
+graphics::barplot(count)
+
+# 箱线图 boxplot()
+graphics::boxplot(d1)
+
+# 直方图 hist()
+# hist(d1)
+
+# 散点图 plot()
+# graphics::plot(d1) # 所有的两两变量矩阵
+
+graphics::plot(d1 %>% 
+                 select(1:4)) # 选择具体列
+
+graphics::plot(d1$cyl,d1$mpg) # 具体参数
+
+graphics::plot(mtcars$wt, mtcars$mpg,
+     main = "Scatterplot of Weight vs MPG with Regression Line",
+     xlab = "Weight (1000 lbs)",
+     ylab = "Miles per Gallon",
+     pch = 19,
+     col = "blue")+ # 使用plot()绘制带回归线的散点图
+abline(lm(mpg ~ wt, data = mtcars), col = "red", lwd = 2)  # 添加回归线
+
+# 矩阵图 pairs()
+graphics::pairs(d1) # 所有的两两变量矩阵
+
+pairs(
+  ~ Fertility + Education + Catholic, # 选择列
+  data = swiss,
+  # row1attop=FALSE, #反对角线
+  subset = Education < 20, # 选择子集
+  main = "Swiss data, Education < 20" # 标题
+)
+
+panel.hist <- function(x, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, 
+         # col = "cyan",
+         ...)
+}
+pairs(d1[1:5], 
+      panel = panel.smooth,
+      cex = 1.5, 
+      pch = 24, # 三角形
+      bg = "light blue", 
+      horOdd=TRUE,
+      diag.panel = panel.hist, 
+      cex.labels = 2, 
+      font.labels = 2)
+panel.smooth <- function(x, y, ...) {
+  points(x, y, ...)
+  abline(lm(y ~ x), col = "blue")
+} # 自定义pairs()的面板函数
+pairs(mtcars,
+      main = "Pairs Plot of mtcars with Regression Lines",
+      pch = 19, # 实心圆点
+      col = "darkgreen",
+      panel = panel.smooth) # 使用自定义面板函数绘制成对散点图矩阵
+
+
+panel.diag <- function(x, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5))
+  d <- density(x, na.rm = TRUE)
+  lines(d$x, d$y)
+} # 自定义对角线图形（显示密度图）
+panel.lower <- function(x, y, ...) {
+  points(x, y, ...)
+  abline(lm(y ~ x), col = 'blue')
+} # 自定义下半部分图形（显示平滑散点图）
+panel.upper <- function(x, y, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- round(cor(x, y, use = "complete.obs"), 2)
+  text(0.5, 0.5, paste0("r = ", r))
+} # 自定义上半部分图形（显示相关系数）
+pairs(
+  ~ mpg + wt + hp + drat,
+  data = mtcars,
+  main = "Pairs Plot of mtcars with Custom Panels",
+  diag.panel = panel.diag,
+  lower.panel = panel.lower,
+  upper.panel = panel.upper,
+  pch = 19, # 实心圆点
+  col = "darkgreen"
+) # 使用自定义函数创建成对散点图矩阵
+
+pairs(iris[1:4], main = "Anderson's Iris Data -- 3 species",
+      pch = 21, bg = c("red", "green3", "blue")[unclass(iris$Species)]) #自定义颜色
+```
+
+## DataExplorer包
+
+```{r}
+rm(list = ls())
+library(DataExplorer)
+d1 <- mtcars
+head(d1)
+
+DataExplorer::plot_str(d1)  # 浏览信息
+DataExplorer::introduce(d1) # 基础信息
+DataExplorer::plot_correlation(d1) # 相关性热图
+DataExplorer::plot_boxplot(d1,by = "disp") #箱线图
+DataExplorer::plot_bar(d1) # 条形图
+DataExplorer::plot_density(d1) # 密度图
+DataExplorer::plot_histogram(d1) #直方图
+DataExplorer::plot_missing(d1) # 缺失值
+DataExplorer::plot_scatterplot(d1,by = "cyl")  # 散点图
+DataExplorer::plot_qq(d1) # QQ图
+```
+
+## GGally包
+
+### ggpairs()
+
+矩阵部分
+成对矩阵有三个主要部分： lower、upper和diag。 lower和upper可能包含三种绘图类型： continuous、combo和discrete。 'diag' 仅包含continuous或 discrete。
+
+  continuous：X 和 Y 都是连续变量
+  combo：一个 X 和 Y 变量是离散的，另一个是连续的
+  discrete：X 和 Y 都是离散变量
+为了调整每个部分，可以提供一个信息列表。该列表可由以下元素组成：
+
+  continuous：表示函数尾部的字符串ggally_NAME，或者自定义函数
+  combo：表示函数尾部的字符串ggally_NAME，或者自定义函数。（不适用于列表diag）
+  discrete：表示函数尾部的字符串ggally_NAME，或者自定义函数
+  mapping：如果提供了映射，则只有该部分的映射会被覆盖
+当前有效功能的列表ggally_NAME可在 中看到vig_ggally("ggally_plots")。
+
+```{r message=FALSE}
+library(tidyverse)
+library(GGally)
+d1 <- mtcars
+# 自定义颜色
+ggpairs(iris, 
+        mapping = aes(color = Species), # 按照种类区分颜色
+        # columns = c('Sepal.Length', 'Sepal.Width', 'Petal.Length', 'Petal.Width'),
+        # columnLabels = c('Sepal.Length', 'Sepal.Width', 'Petal.Length', 'Petal.Width','Species'),
+        lower = list(continuous=wrap("smooth")),
+        progress = FALSE) + 
+  scale_colour_manual(values=c('red','blue','orange')) + # 指定颜色
+  theme_bw()
+
+# 散点回归线+密度图+相关系数矩阵图
+ggpairs(
+  mtcars %>% 
+    select(1:4),
+  title = "Pairs Plot of mtcars with Custom Panels",
+  upper = list(continuous = wrap("cor", size = 5)), # 上半部分图形
+  lower = list(continuous = wrap("smooth", alpha = 0.6),combo = "facetdensity"), # 下半部分图形
+  diag = list(continuous = wrap("densityDiag")), # 对角线图形
+  progress = FALSE
+) + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+# 散点回归线+直方图+相关系数矩阵图
+ggpairs(
+  mtcars,
+  columns = c("mpg", "wt", "hp", "drat"),
+  # columnLabels = c("Total Bill", "Time of Day", "Tip","drat"), #列重命名
+  lower = list(continuous=wrap("smooth",alpha=0.6)),
+  diag = list(continuous=wrap("barDiag"),binwidth=1),
+  progress = FALSE
+)+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_bw()
+
+# 自定义对角线绘图函数并创建散点图矩阵
+custom_diag <- function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_histogram(aes(y = ..density..), 
+                   # binwidth = 1, 
+                   # fill = "lightblue", 
+                   color = "black", 
+                   ...) +
+    geom_density(alpha = 0.5,
+                 # fill = "red",
+                 ...)
+}
+p <- ggpairs(
+  d1,
+  columns = c(1,3:7),
+  upper = list(continuous=wrap("cor",size=8)),
+  lower = list(continuous = wrap("smooth")),
+  diag = list(continuous = custom_diag),
+  progress = FALSE
+) %>% 
+  print()
+```

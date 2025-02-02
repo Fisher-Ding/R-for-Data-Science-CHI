@@ -1,0 +1,124 @@
+---
+title: "Descriptive Statistics"
+author: "Dean Hawk"
+date: "2024-07-23"
+output: html_document
+---
+
+```{r 环境配置}
+rm(list = ls())
+library(tidyverse)
+library(Hmisc)
+```
+
+
+# 目录：描述性统计的几种方法
+• 自定义函数
+• 自定义描述性统计函数：创建一个函数来计算基本的描述性统计量，如均值、中位数、标准差等。
+
+• R 基础函数
+• `summary()`：使用 R 基础函数`summary()`来获取数据的描述性统计信息。
+
+• R 包中的函数
+• `psych::describe()`：使用`psych`包中的`describe()`函数来获取更详细的描述性统计信息。
+• `pastecs::stat.desc()`：使用`pastecs`包中的`stat.desc()`函数来获取描述性统计信息，包括偏度和峰度。
+• `skimr::skim()`：使用`skimr`包中的`skim()`函数来获取全面的描述性统计信息。
+• `bruceR::Describe()`：使用`bruceR`包中的`Describe()`函数来获取描述性统计信息。
+• `Hmisc::describe()`：使用`Hmisc`包中的`describe()`函数来获取描述性统计信息。
+
+## 1.自定义函数
+
+```{r 自定义函数}
+#整理成描述性统计的函数
+my_describe <- function(x){
+  options(digits = 3)
+  N = length(x);
+  Min = min(x, na.rm = TRUE);
+  Q1 = quantile(x, probs = 0.25, na.rm = TRUE);
+  Median = median(x, na.rm = TRUE);
+  Q3 = quantile(x, probs = 0.75, na.rm = TRUE);
+  Max = max(x, na.rm = TRUE);
+  Mean = mean(x, na.rm = TRUE);
+  Var = var(x, na.rm = TRUE);
+  Sd = sd(x, na.rm = TRUE);
+  Range = abs(diff(range(x)));
+  #返回结果
+  return(data.frame(N = N, Min = Min, Q1 = Q1, Median = Median, Q3 = Q3, Max = Max, Mean = Mean, Var = Var, Sd = Sd, Range = Range))
+}
+#可对data数据集批量使用
+sapply(mtcars, my_describe)
+```
+
+## 2.基础包中summary()函数
+
+可得到数值型变量的最小值、下四分位数、中位数、上四分位数和最大值。
+
+```{r}
+head(mtcars)
+data <- mtcars[c("mpg","disp","hp")]
+summary(data)
+```
+
+## 3.psych包中describe()函数
+
+```{r}
+library(psych)
+describe(data)
+```
+
+## 4.pastecs包中stat.desc()函数
+
+当设置norm=TRUE（非默认）时，可以返回偏度和丰度（统计显著程度）和Shapiro-Wilk正态检验的结果。
+
+其中p=0.05表示计算平均数的置信区间默认置信度为0.95.
+
+```{r}
+# install.packages("pastecs")
+library(pastecs)
+options(digits=3) #设定三位小数
+stat.desc(data,norm = TRUE)
+```
+
+## 5.skimr::skim(raw)
+
+```{r}
+# install.packages("skimr")
+library(skimr)
+skimr::skim(data)
+```
+
+## 6.bruceR::Describe()
+
+```{r}
+# pacman::p_load(bruceR)
+bruceR::Describe(mtcars)
+```
+
+## 7.Hmisc::describe()
+
+```{r}
+# pacman::p_load(Hmisc)
+Hmisc::describe(mtcars)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

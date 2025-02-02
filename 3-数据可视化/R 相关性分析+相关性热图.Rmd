@@ -1,0 +1,252 @@
+---
+title: "R 相关性分析"
+author: "Dean Hawk"
+date: "2024-03-27"
+output: html_document
+---
+
+# 相关性分析
+
+## 前期准备
+
+```{r}
+# 加载包
+pacman::p_load(ggcorrplot,corrmorant)
+library(tidyverse)
+library(ggplot2)
+# install.packages("ggcorrplot")
+library(ggcorrplot) #热图
+# install.packages("corrplot")
+library(corrplot) #热图
+# install.packages("pheatmap")
+library(pheatmap) #热图
+# install.packages("circlize")
+library(circlize) #和弦图
+# library(plotly,warn.conflicts = flase)
+# devtools::install_github("thomasp85/scico")
+library(scico) #「scico」包制作一个调色板
+library(psych)
+library(magrittr)
+library(corrmorant) #创建相关系数矩阵的可视化图表？
+
+# 数据载入
+dt <- mtcars
+
+# 将相关系数矩阵转换为数据框
+# correlation_df <- as.data.frame(correlation_matrix)
+```
+
+## 皮尔逊（Pearson）相关系数
+
+皮尔逊相关系数用于评估两个连续变量之间的线性关系强度和方向。
+
+```{r}
+# 使用cor函数计算皮尔逊相关系数矩阵
+pearson_cor_matrix <- cor(dt[, c("disp", "mpg", "cyl")],method = "pearson")
+print(pearson_cor_matrix)
+```
+
+## 斯皮尔曼（Spearman）秩相关系数
+
+斯皮尔曼秩相关系数不假定数据是正态分布的，适用于连续或有序分类变量，它通过对原始数据进行排名来计算相关性。
+
+```{r}
+# 计算斯皮尔曼秩相关系数:spearman_cor <- cor(x, y, method = "spearman")
+spearman_cor_matrix <-cor(dt[, c("disp", "mpg", "cyl")],method = "spearman")
+print(spearman_cor_matrix)
+```
+
+## 肯德尔（Kendall）秩相关系数
+
+肯德尔秩相关系数是另一种非参数的相关性度量，适用于小样本或有序分类变量。
+
+```{r}
+# 计算肯德尔秩相关系数:kendall_cor <- cor(x, y, method = "kendall")
+kendall_cor_matrix <- cor(dt[, c("disp", "mpg", "cyl")],method = "kendall")
+print(kendall_cor_matrix)
+```
+
+## 可视化相关性矩阵（相关性热图）
+
+如果你有多个变量并希望同时评估它们之间的相关性，可以创建相关性矩阵并通过热图进行可视化。
+
+```{r}
+# 假设data是一个数据框，包含多个变量
+cor_matrix <- cor(dt, method = "pearson")
+
+# 使用ggplot2包绘制热图
+library(ggplot2)
+library(reshape2)
+
+# 将相关性矩阵转换为长格式
+cor_melt <- melt(cor_matrix)
+
+# 绘制热图
+ggplot(cor_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limit = c(-1, 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 使用ggplot2绘制热图
+ggplot(cor_melt, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "", fill = "Correlation")
+
+# ggcorrplot()绘制热图
+ggcorrplot(cor_matrix)
+ggcorrplot(cor_matrix,method = "circle",lab=T)
+
+# corrplot（）绘制热图
+
+corrplot(cor_matrix)
+
+corrplot(cor_matrix, method = "circle", 
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45)
+
+# 更改参数，method = "ellipse", type = "upper"。
+corrplot(cor_matrix, method = "ellipse", 
+         type = "upper",
+         tl.col = "black", tl.cex = 1.2, tl.srt = 45)
+#method和type还有其他选项，根据需要修改
+# method = c("circle", "square", "ellipse", "number", "shade", "color", "pie")
+# type = c("full", "lower", "upper")
+
+# 组合式 ，左下展示相关系数，右上展示ellipse图形
+corrplot(cor_matrix, method = "ellipse", type = "upper",
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45, tl.pos = "lt")
+
+corrplot(cor_matrix, method = "number", type = "lower",
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",add = T)
+
+# 改色，添加一个自定义颜色
+addcol <- colorRampPalette(c("red", "white", "blue"))
+corrplot(cor_matrix, method = "pie", type = "upper",col = addcol(100), 
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45,
+         tl.pos = "lt")
+
+corrplot(cor_matrix, method = "number", type = "lower",col = addcol(100), 
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",
+         add = T)
+
+# 添加统计学意义星号
+testRes = cor.mtest(dt, method="pearson",conf.level = 0.95)
+corrplot(cor_matrix, method = "color", col = addcol(100), 
+         tl.col = "black", tl.cex = 0.8, tl.srt = 45,tl.pos = "lt",
+         p.mat = testRes$p, diag = T, type = 'upper',
+         sig.level = c(0.001, 0.01, 0.05), pch.cex = 1.2,
+         insig = 'label_sig', pch.col = 'grey20', order = 'AOE')
+
+corrplot(cor_matrix, method = "number", type = "lower",col = addcol(100), 
+         tl.col = "n", tl.cex = 0.8, tl.pos = "n",order = 'AOE',
+         add = T)
+```
+
+```{r}
+# pheatmap（）画热图
+scico_palette_show()
+mycol <- scico(1000, palette = "vik") #「scico」包制作一个调色板
+
+pheatmap(cor_matrix, 
+         show_colnames = TRUE,   # 是否显示列名
+         show_rownames=TRUE,     # 是否显示行名
+         fontsize=13,             # 字体大小
+         color = colorRampPalette(c('#00185A','#286391','#E9E1DB','#AB5A2B','#501008'))(50), # 指定热图的颜色
+         # color = mycol,
+         annotation_legend=TRUE, # 是否显示图例
+         border_color=NA,        # 边框颜色 NA表示没有
+         scale="none",           # 指定归一化的方式。"row"按行归一化，"column"按列归一化，"none"不处理
+         cluster_rows = TRUE,    # 是否对行聚类
+         cluster_cols = TRUE     # 是否对列聚类
+)
+```
+
+
+```{r}
+# 使用pearson方法计算环境数据和物种数据之间的相关系数和p-value，并进行多重比较法的FDR校正
+pp <- corr.test(dt[, c("disp", "mpg")], method = "pearson", adjust = "fdr")
+cor <- pp$r # 获取相关系数矩阵
+pvalue <- pp$p # 获取p-value矩阵
+
+# 将相关系数矩阵转换为长格式，并添加p-value和显著性符号列
+df <- melt(cor) %>% 
+  mutate(pvalue = melt(pvalue)[, 3],
+         p_signif = symnum(pvalue, corr = FALSE, na = FALSE,  
+                           cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1), 
+                           symbols = c("***", "**", "*", "", " "))) %>% 
+  set_colnames(c("env", "genus", "r", "p", "p_signif"))
+
+#将相关系数矩阵转换为宽格式，行名为环境变量，列名为物种，值为相关系数
+rvalue <- df %>% 
+  select(1, 2, 3) %>% 
+  pivot_wider(names_from = "genus", values_from = r) %>% 
+  column_to_rownames(var = "env")
+
+# 将显著性符号矩阵转换为宽格式，行名为环境变量，列名为物种，值为显著性符号
+pvalue <- df %>% 
+  select(1, 2, 5) %>% 
+  pivot_wider(names_from = "genus", values_from = p_signif) %>% 
+  column_to_rownames(var = "env")
+
+mycol <- scico(100, palette = "vik")
+
+# 绘制热图，显示相关系数，行列聚类，无边框，显示p-value作为数字，设置数字字体大小和颜色
+# 设置主标题为空格，设置单元格宽度和高度，使用自定义颜色映射
+pheatmap(cor_matrix, 
+         scale = "none", 
+         cluster_row = TRUE, 
+         cluster_col = TRUE, 
+         border = NA,
+         # display_numbers = pvalue, 
+         fontsize_number = 12, 
+         number_color = "white",
+         main = " ",
+         cellwidth = 21, 
+         cellheight = 20, 
+         color = mycol
+)
+
+```
+
+## 注意事项
+
+1.皮尔逊相关系数要求数据是连续的并且大致呈正态分布。
+2.斯皮尔曼和肯德尔相关系数是非参数的，不要求数据是正态分布的，适合连续和有序分类变量。
+3.在进行相关性分析之前，了解数据的类型和分布特征是非常重要的，这将帮助你选择合适的相关性度量方法。
+4.相关性不等于因果性。即使两个变量之间存在高度的相关性，也不能直接得出一个变量导致了另一个变量的变化的结论。
+
+
+## 相关性和弦图
+
+```{r}
+# 读取数据
+df <- read.delim("https://www.bioladder.cn/shiny/zyp/bioladder2/model/bioladder1/Chord/demoData.txt")
+# write_csv(df,"/Users/ding/Desktop/和弦图数据.csv")
+
+df <- df %>%
+  mutate(across(everything(), ~gsub("A", "mpg", ., fixed = TRUE)))
+
+# 绘图
+chordDiagram(
+  x = df,
+  grid.col = hcl.colors(11),                     # 颜色方案，数字向量11要和实际的数据相符
+  directional = 1,                               # 箭头方向。选项有1,0,-1
+  direction.type = c("arrows", "diffHeight"),    # 线条两端的形状
+  diffHeight = -0.02,                            # 线条两端距离边缘的距离差
+  annotationTrack = c("name", "grid", "axis"),   # 都绘制哪些内容，name标签；grid边缘形状；axis刻度
+  annotationTrackHeight = c(0.05, 0.08),         # 标签距离图形的距离; 环形边缘的宽度
+  link.arr.type = "big.arrow",                   # 形状"curved", "triangle", "circle", "ellipse".
+  link.sort = TRUE,                              # 内部排序
+  link.largest.ontop = TRUE,                     # 控制添加链接的顺序，是否基于绝对值?
+  symmetric = TRUE,                              # 对称矩阵 当矩阵对称时，通过设置symmetric = TRUE，将只使用没有对角线的下三角矩阵。
+  transparency = 0.25                            # 线条透明度
+)
+# 更多参数?chordDiagram查看
+
+```
+
+
+

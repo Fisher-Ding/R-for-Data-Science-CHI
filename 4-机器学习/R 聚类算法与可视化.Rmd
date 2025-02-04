@@ -1,0 +1,383 @@
+---
+title: "R 聚类算法与可视化"
+author: "Dean Hawk"
+date: "2024-12-17"
+output: html_document
+---
+
+## 相关环境配置
+
+```{r 相关环境配置}
+# rm(list = ls())
+# 加载包
+library(pacman)
+p_load(tidymodels,
+       tidyverse,
+       cluster, # k值轮廓系数（Silhouette Score） 
+       factoextra) # 用于聚类可视化
+```
+
+## 1 K-mean聚类
+
+K-Means 聚类是一种基于距离的算法，假设数据点是通过 K 个簇来聚类的。
+
+### 关键步骤：
+	1.	使用 kmeans() 函数执行聚类，设置聚类数 centers。
+	2.	使用 ggplot2 进行可视化，将数据点按簇的标签着色。
+	
+### 如何选择 centers 和 nstart 的值？
+
+！！centers 参数：簇的数量（K 值）。centers 表示你要将数据分成多少个簇（K 值）。
+	
+•	选择 K 值的方法：
+肘部法则（Elbow Method）：
+	•	计算不同 K 值下的 簇内平方和（tot.withinss）。
+	•	绘制 K 值与簇内平方和的图，寻找拐点（“肘部”）。
+	•	拐点之后，增加 K 值对簇内平方和的减少效果会逐渐变小。
+	
+轮廓系数法（Silhouette Method）：
+	•	计算不同 K 值下的平均轮廓系数，选择轮廓系数最大的 K 值。
+	•	使用 cluster 包的 silhouette() 函数来计算轮廓系数。
+	
+！！nstart 参数：初始簇中心的随机选择次数(指标：tot.withinss)
+	•	nstart 控制 K-Means 算法尝试不同初始质心的次数。
+	•	K-Means 聚类算法容易受到 初始中心点选择 的影响，可能会收敛到局部最小值。
+	•	nstart 的选择经验：
+	•	设置较大的 nstart 可以增加找到全局最优解的概率，推荐值为 10 到 50。
+	•	默认值是 nstart = 1，但这通常不够，可能导致结果不稳定。
+
+！！总结
+	1.	centers（K 值选择）：
+	•	使用 肘部法则 和 轮廓系数法 来确定最优的 K 值。
+	•	一般情况下，绘制 K 与簇内平方和或轮廓系数的图，寻找拐点或最大值。
+	2.	nstart（随机初始中心点的次数）：
+	•	为了提高稳定性，推荐设置 nstart = 20 或更大。
+	•	增加 nstart 可以减少局部最优解的影响，找到更好的聚类结果。
+
+```{r K-mean聚类, message=FALSE, warning=FALSE}
+# 示例数据：mtcars 数据集
+data(mtcars)
+set.seed(123)
+# 数据预处理
+rec <- recipe(~.,x = mtcars) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_pca(all_numeric())
+
+# 数据准备
+prep_data <- rec %>% 
+  prep() %>% 
+  juice()
+
+# 执行 K-means 聚类
+set.seed(123)
+kmeans_model <- kmeans(prep_data, centers = 5, nstart = 20) # 参数设置方法？
+kmeans_model
+
+# 选择k值
+fviz_nbclust(prep_data, kmeans, method = "wss")  # 肘部法则
+sil_width <- silhouette(kmeans_model$cluster, dist(prep_data)) # 计算轮廓系数
+summary(sil_width)  # 输出轮廓系数
+plot(sil_width, main = "Silhouette Plot for K-Means Clustering")
+
+# 选择nstart值
+# 不同 nstart 值的范围
+nstart_values <- c(1,5,10,20,50)
+# 保存结果的列表
+results <- data.frame(nstart = integer(), tot_withinss = numeric())
+# 迭代不同的 nstart 并计算聚类结果
+for (n in nstart_values) {
+  kmeans_result <- kmeans(prep_data, centers = 4, nstart = n)
+  results <- rbind(results, data.frame(nstart = n, tot_withinss = kmeans_result$tot.withinss))
+}
+# 查看结果
+results %>% 
+  arrange(nstart)
+# 可视化 nstart 和总簇内平方和的关系
+p <- ggplot(results, aes(x = nstart, y = tot_withinss)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Effect of nstart on K-Means Clustering",
+       x = "Number of Starts (nstart)", 
+       y = "Total Within-Cluster Sum of Squares") +
+  theme_minimal()
+plotly::ggplotly(p)
+
+# 聚类结果
+kmeans_model$cluster # 输出每个点的簇标签
+
+# 聚类结果
+prep_data <- prep_data %>% 
+  mutate(
+    cluster=kmeans_model$cluster,
+    id=row_number()
+    
+  )
+prep_data
+
+print(kmeans_model$cluster)  # 每个数据点所属的簇
+print(kmeans_model$centers)  # 每个簇的质心
+print(kmeans_model$tot.withinss)  # 聚类的总内聚度（误差平方和）
+
+# 可视化
+fviz_cluster(kmeans_model, data = prep_data,ggtheme = theme_bw())
+
+# 可视化结果
+ggplot(prep_data, aes(x = PC1, y = PC2, color = factor(prep_data$cluster))) +
+  geom_point(aes(shape = factor(cluster))) +
+  labs(title = "K-Means Clustering", color = "Cluster") +
+  geom_polygon(data = prep_data %>% group_by(cluster) %>% slice(chull(PC1, PC2)),
+               aes(x = PC1, y = PC2, group = cluster, fill = factor(cluster),color = factor(cluster)),
+               alpha = 0.3) +  # 填充颜色按 cluster 映射，边界颜色固定为红色
+  geom_text(aes(label = id), vjust = -1, size = 3) +  # 添加数据标签，vjust 调整标签位置
+  # stat_ellipse()+
+  theme_minimal()
+```
+
+## 2 层次聚类
+
+层次聚类方法将数据以树状结构表示，并通过凝聚（自下而上）或分裂（自上而下）方式来进行聚类。
+
+### 关键步骤：
+	1.	使用 dist() 函数计算数据的距离矩阵。
+	2.	使用 hclust() 进行层次聚类，可以选择不同的链接方法（如 complete、single、average、ward.D2等）。
+	3.	使用 cutree() 来从树状图中截取簇。
+	4.	使用 ggplot2 可视化结果。
+	
+### 如何选择链接方法？
+	•	密集簇： 如果你希望得到密集的簇，通常选择 完全链接（complete linkage）。
+	•	松散簇： 如果簇之间的关系较为松散或希望保持簇的形态，选择 单链接（single linkage）。
+	•	平衡： 如果数据没有明显的簇结构，且你希望平衡簇的紧密性和松散性，可以选择 平均链接（average linkage）。
+	•	通过观察： 你可以通过绘制 树状图（dendrogram） 来观察不同链接方法对聚类的影响，进而选择最合适的链接方法。
+	
+### 观察树状图中的聚类结构：
+	•	Single Linkage：容易出现“链状效应”（Chaining Effect），表现为树状图中长而稀疏的合并结构。
+	•	Complete Linkage：生成紧密、均匀的簇，树状图的簇更紧凑，分界清晰。
+	•	Average Linkage：折中方法，生成较平衡的簇。
+	•	Ward.D2：生成最紧密、均匀的簇，树状图结构更平滑。
+	
+### 选择最佳方法：
+	•	如果簇之间的边界较清晰，complete 或 ward.D2 通常是较好的选择。
+	•	如果数据倾向于链状结构，single 可能更合适。
+	•	根据你的具体任务和数据的特点，观察不同方法下的树状图并选择效果最好的方法。
+
+```{r 层次聚类}
+# 数据标准化
+rec <- recipe(~., data = mtcars) %>%
+  step_normalize(all_numeric_predictors()) %>% 
+  step_pca(all_numeric())
+
+# 数据准备
+prep_data <- rec %>% prep() %>% juice()
+prep_data
+
+set.seed(123)
+# 计算数据点的欧几里得距离
+dist_matrix <- dist(prep_data,method = "euclidean")
+
+# 层次聚类
+hc_complete <- hclust(dist_matrix, method = "complete")
+hc_single <- hclust(dist_matrix, method = "single")
+hc_average <- hclust(dist_matrix, method = "average")
+hc_ward <- hclust(dist_matrix, method = "ward.D2")
+
+# 可视化层次聚类的树状图:绘制聚类树
+par(mfrow = c(2, 2))  # 一页显示4个图
+plot(hc_complete, main = "Complete Linkage")
+plot(hc_single, main = "Single Linkage")
+plot(hc_average, main = "Average Linkage")
+plot(hc_ward, main = "Ward.D2 Linkage")
+
+# 计算轮廓系数
+sil_width <- silhouette(cutree(hc_ward, k = 4), dist_matrix)
+summary(sil_width)  # 输出轮廓系数
+
+# 定义四种层次聚类方法
+methods <- list(
+  complete = hclust(dist_matrix, method = "complete"),
+  single   = hclust(dist_matrix, method = "single"),
+  average  = hclust(dist_matrix, method = "average"),
+  ward     = hclust(dist_matrix, method = "ward.D2")
+)
+
+# 定义要测试的簇数 K 值范围
+k_values <- 2:6  # 假设测试 K = 2 到 6
+
+# 创建一个列表来存储轮廓系数结果
+silhouette_results <- list()
+# 批量计算轮廓系数
+for (method_name in names(methods)) {
+  hc <- methods[[method_name]]  # 获取当前的层次聚类模型
+  
+  for (k in k_values) {
+    # 获取当前K的聚类结果
+    clusters <- cutree(hc, k = k)
+    
+    # 计算轮廓系数
+    sil <- silhouette(clusters, dist_matrix)
+    
+    # 保存结果
+    silhouette_results[[paste(method_name, "K=", k, sep = "_")]] <- summary(sil)$avg.width
+  }
+}
+# 将列表转换为数据框
+sil_df <- tibble(
+  Method_K = names(silhouette_results),  # 提取名称
+  Silhouette = unlist(silhouette_results)  # 提取数值
+) %>% 
+  separate(col = Method_K,into = c("Method","k-value"),sep = "_K=_") %>%
+  arrange(desc(Silhouette))
+print(sil_df)
+
+# 聚类结果：截取树状图，设置簇的数量（如 3）
+cut_result <- cutree(hc_ward, k = 5)
+
+prep_data <- prep_data %>% 
+  mutate(
+    cluster=cutree(hc_ward, k = 5),
+    id=row_number()
+  )
+prep_data
+# 可视化聚类结果
+plot(cut_result)
+
+ggplot(prep_data, aes(x = PC1, y = PC2, color = factor(cut_result))) +
+  geom_point(size=3) +
+  stat_ellipse()+
+  labs(title = "Hierarchical Clustering", color = "Cluster") +
+  theme_minimal()
+
+ggplot(prep_data, aes(x = PC1, y = PC2, color = factor(cluster), fill = factor(cluster))) +
+  geom_point(aes(shape = factor(cluster)),size = 3) + 
+  geom_polygon(data = prep_data %>% group_by(cluster) %>% slice(chull(PC1, PC2)),
+               aes(x = PC1, y = PC2, group = cluster, fill = factor(cluster),color = factor(cluster)),
+               alpha = 0.3) +  # 填充颜色按 cluster 映射，边界颜色固定为红色
+  geom_text(aes(label = id), vjust = -1, size = 3) +  # 添加数据标签，vjust 调整标签位置
+  labs(title = "Hierarchical Clustering", color = "Cluster", fill = "Cluster") +
+  theme_minimal()
+
+fviz_cluster(list(data = prep_data, cluster = cut_result),ggtheme = theme_minimal())
+
+
+```
+### 根据不同的链接方法选择 K 值
+1.	Complete Linkage（左上角）：
+	•	观察高度约为 6 左右 的水平截断线，可以看到树被分成 3 到 4 个主要簇。
+	•	截断后，下方的分支较短，说明簇内的数据点相对接近，而簇之间分离较明显。
+2.	Single Linkage（右上角）：
+	•	这里链状效应明显，垂直线段较短且没有清晰的分割点。
+	•	如果截断高度较高，几乎所有点都逐步合并，很难找到合理的 K 值。
+	•	单链接不适合直接从树状图中选择 K 值，通常不推荐。
+3.	Average Linkage（左下角）：
+	•	在高度约 4 左右 截断，可以看到树被分成 4 到 5 个簇，分支结构较为均匀。
+	•	平均链接提供了一个较平衡的聚类结果，可以进一步通过验证方法（如轮廓系数）确认最优 K。
+4.	Ward.D2 Linkage（右下角）：
+	•	在高度约 10 左右 截断，可以清楚地看到树被分成 3 个主要簇。
+	•	Ward 方法生成的簇更均匀，且分离度较大，适合选择较高的 K 值。
+
+## 3 dbscan聚类
+
+DBSCAN 是一种基于密度的聚类算法，能够识别不同密度的簇，并能够自动处理噪声点。
+
+### 关键步骤：
+	1.	使用 dbscan() 函数进行 DBSCAN 聚类，eps 为邻域半径，minPts 为最小样本数。
+	2.	DBSCAN 可以自动识别噪声点，这些点会被标记为 -1。
+	3.	使用 ggplot2 进行结果可视化。
+
+```{r dbscan聚类}
+# 加载包
+pacman::p_load(dbscan)
+library(tidymodels)
+
+# 数据标准化
+rec <- recipe(~., data = mtcars) %>%
+  step_normalize(all_numeric()) %>% 
+  step_pca(all_numeric(),num_comp = 2)
+
+prep_data <- rec %>% prep() %>% juice()
+
+# 执行 DBSCAN 聚类
+dbscan_model <- dbscan(prep_data, eps = 1.0, minPts = 5)
+
+# 聚类结果
+dbscan_model$cluster
+dbscan_model
+summary(dbscan_model)
+
+# 可视化结果
+library(factoextra)
+fviz_cluster(list(data = prep_data, cluster = dbscan_model$cluster),ggtheme = theme_minimal())
+
+# 使用 DBSCAN 聚类
+dbscan_result <- dbscan(prep_data, eps = 0.5, minPts = 5)
+
+# 查看聚类结果
+dbscan_result$cluster  # 输出每个点的簇标签，噪声点为 -1
+
+prep_data <- prep_data %>% 
+  mutate(
+    cluster=dbscan_result$cluster,
+    id=row_number()
+  )
+
+# 可视化 DBSCAN 聚类结果
+ggplot(prep_data, aes(x = PC1, y = PC2, color = factor(dbscan_result$cluster))) +
+  geom_point(size=3) +
+  stat_ellipse(alpha=0.7)+
+  geom_text(aes(label = id), vjust = -1, size = 3) +  # 添加数据标签，vjust 调整标签位置
+  labs(title = "DBSCAN Clustering", color = "Cluster") +
+  theme_minimal()
+
+# 假设 dbscan_result 是 DBSCAN 聚类的结果
+prep_data$cluster <- factor(dbscan_result$cluster)  # 将聚类结果存储到数据中
+# 绘制 DBSCAN 聚类边界
+ggplot(prep_data, aes(x = PC1, y = PC2, color = cluster, fill = cluster)) +
+  geom_point(aes(shape = cluster), size = 3) +       # 绘制点，按 cluster 使用不同形状
+  geom_polygon(data = prep_data %>% group_by(cluster) %>% slice(chull(PC1, PC2)),
+               aes(x = PC1, y = PC2, group = cluster, fill = factor(cluster),color = factor(cluster)),
+               alpha = 0.15) +  # 填充颜色按 cluster 映射，边界颜色固定为红色
+  geom_text(aes(label = id), vjust = -1, size = 3) +  # 添加数据标签，vjust 调整标签位置
+  labs(title = "DBSCAN Clustering", 
+       # color = "Cluster",
+       x = "PC1", 
+       y = "PC2"
+) +
+  theme_minimal()
+```
+
+## 高斯混合模型（Gaussian Mixture Models, GMM） 聚类
+
+```{r 高斯混合模型（Gaussian Mixture Models, GMM） 聚类}
+library(mclust)
+
+# 执行模型聚类
+mclust_result <- Mclust(iris)
+
+# 查看结果
+summary(mclust_result)
+
+# 可视化聚类结果
+plot(mclust_result, what = "classification")
+```
+
+## 总结
+	•	K-Means 聚类：适用于簇形状均匀且无噪声的数据。
+	•	层次聚类：适合用于数据集的层次结构分析，能够生成树状图。
+	•	DBSCAN 聚类：适用于具有不同密度的簇，并能够自动识别噪声点。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

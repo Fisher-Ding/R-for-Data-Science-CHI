@@ -3,6 +3,8 @@ title: "数据探索与可视化"
 author: "Dean Hawk"
 date: "2024-07-23"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## graphics包
@@ -177,7 +179,7 @@ ggpairs(iris,
 # 散点回归线+密度图+相关系数矩阵图
 ggpairs(
   mtcars %>% 
-    select(1:4),
+    dplyr::select(1:4),
   title = "Pairs Plot of mtcars with Custom Panels",
   upper = list(continuous = wrap("cor", size = 5)), # 上半部分图形
   lower = list(continuous = wrap("smooth", alpha = 0.6),combo = "facetdensity"), # 下半部分图形

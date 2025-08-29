@@ -1,0 +1,322 @@
+---
+title: "R绘图|六种PCA绘图模板保姆级教程包括PCA原理及可视化"
+author: "Dean Hawk"
+date: "2024-12-10"
+output: html_document
+---
+R绘图|六种PCA绘图模板保姆级教程包括PCA原理及可视化:https://mp.weixin.qq.com/s/peEQrDB9k-2BRSeu4FqyNg
+微信公众号：清同趣科研
+
+```{r}
+# 清理工作环境中的所有对象
+# rm(list=ls())
+#加载相关包
+library(pacman)
+p_load(vegan,ggh4x)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(ggh4x)
+library(ggrepel)
+```
+
+```{r}
+# 读取文件
+asv <- read_csv("extracted_data.csv") %>% 
+  mutate(
+    across(everything(),as.numeric)
+  )
+asv
+
+# 创建新表格
+group <- data.frame(
+  sample = colnames(asv),
+  group = substr(colnames(asv), 1, 1)
+)
+group
+
+# 数据清洗：转换为长表格式
+data_long <- asv %>%
+  pivot_longer(cols = everything(), names_to = "sample", values_to = "value") %>% 
+  arrange(sample,value)
+data_long
+```
+```{r}
+
+#########执行PCA##############
+# 用每列的均值填充
+asv <- asv %>%
+  mutate(across(where(is.numeric), ~ replace_na(., mean(., na.rm = TRUE))))
+
+PCA <- prcomp(asv,scal=TRUE)
+# 主成分的标准差
+PCA$sdev
+# 载荷矩阵，包含每个主成分的特征向量
+PCA$rotation
+# 用于中心化的均值向量
+PCA$center
+# 用于标准化的标准差向量
+PCA$scale
+PCA$x
+PCA
+# 统计摘要
+PCA_sum <- summary(PCA)
+PCA_sum
+#提取出PC1及PC2的坐标
+PC12 <- PCA_sum$rotation[,1:2]
+#计算各主成分解释度
+pc <- PCA_sum$importance[2,]*100
+as.data.frame(PC12) %>% 
+  rownames_to_column(var = 'sample') %>% 
+  left_join(.,group,by='sample')
+#将绘图数据和分组合并
+PC_bac <- as.data.frame(PC12) %>% 
+  rownames_to_column(var = 'sample') %>% # 行名转列名，与group分组文件根据smple列进行左连接（将PC12的全部内容保留，添加group的信息）
+  left_join(.,group,by='sample')
+```
+```{r}
+
+##################定制颜色映射及主题##################
+# 定制后面绘图中映射的颜色
+color_1 <- c("#F5AB5E","#947959","#5F97C6","#F09496","#D2D2D2","#9C9BE9","#AFC778","#EFDBB9","#A3CDEA","#F4DFDD")
+# 定制后面绘图中的主题
+Classic <- theme_bw(base_size = 15)+
+  theme(
+        panel.grid.major = element_blank(), # 移除主网格线
+        panel.grid.minor = element_blank(), # 移除次网格线
+        axis.text.x = element_text(size = 16,color="black"),
+        axis.text.y = element_text(size = 16,color="black"),
+        axis.title.y = element_text(size = 18,color="black"),
+        axis.title.x = element_text(size = 18,color="black"),
+        axis.ticks.length = unit(-0.2, "cm"), # 设置坐标轴刻度线的长度
+        # legend.position = 'none',
+        legend.position=c(0.001,0.999),
+        legend.title = element_blank(), # 移除图例标题
+        legend.key=element_blank(),   # 图例键为空
+        legend.text = element_text(color="black",size=9,face = "bold"), # 定义图例文本
+        legend.spacing.x=unit(0.1,'cm'), # 定义文本水平距离
+        legend.key.width=unit(0.5,'cm'), # 定义图例水平大小
+        legend.key.height=unit(0.5,'cm'), # 定义图例垂直大小
+        legend.background=element_blank(), # 设置背景为空
+        legend.box.background=element_rect(colour="black"), # 图例绘制边框
+        legend.justification=c(0.0001,1)
+        )
+############## 基础绘图 + 添加置信圆 ###################
+P1 <- ggplot(data=PC_bac, aes(x=PC1, y=PC2, color=group))+
+  geom_point(size=4,alpha = 0.8,stroke = 3,shape = 16)+ # 绘制点图并设定大小
+  labs(x=paste0("PC1 (",pc[1],"%)"),
+       y=paste0("PC2 (",pc[2],"%)"))+ # 将x、y轴标题改为贡献度
+  scale_color_manual(values = color_1) + # 点的颜色设置
+  scale_fill_manual(values = color_1)+
+  scale_shape_manual(values = c(10:19))+
+  Classic
+P1
+P2 <- P1 + 
+  # 添加置信圆
+  stat_ellipse(data=PC_bac, geom = "polygon", 
+               # 定义置信水平、线性
+               level=0.95, linetype = 2, 
+               # 定义粗细，透明度
+               size=0.5, alpha=0.1,
+               aes(fill=group)
+               )
+P2
+```
+
+```{r}
+####################### 添加几何图形 + 质心 ##########################
+P3 <- P1 + 
+  geom_point(size=6,alpha = 0.5)+
+  geom_polygon(aes(x=PC1, y=PC2, fill = group, color = group),
+               alpha = 0.2, 
+               linetype = 1, 
+               linewidth = 1.5
+               )
+P3
+P4 <- P1 +  
+  # 计算几何体的质心位置，即几何体的“重心”
+  stat_midpoint(aes(xend = PC1, yend = PC2, colour = group),
+                geom = "segment", crop_other =F,
+                alpha=0.3, size = 3
+                )
+P4
+```
+
+
+```{r}
+
+####################### 添加密度曲线 + 箭头#########################
+# 添加密度曲线
+library(ggExtra)
+P5 <- ggMarginal(P2,
+           type=c('density'), margins='both', 
+           size=3.5, groupColour=F, groupFill=T
+           )
+P5
+
+
+# 添加箭头
+P6 <- P1 + 
+  geom_segment(aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(angle=16,length = unit(0.20,"cm"),type = "closed"),
+               linetype=1, size=0.2,colour = "red")+
+  # 添加样本信息or分组信息
+  # geom_text_repel(aes(PC1,PC2,label=sample),colour = "black")+
+  # 图中虚线
+  geom_hline(yintercept=0,linetype=3,size=1) +  
+  geom_vline(xintercept=0,linetype=3,size=1)
+P6
+```
+
+```{r}
+rm(list = ls())
+# 加载必要的库
+library(pacman)
+library(ggpca)
+library(ggplot2)
+p_load(showtext)
+showtext_auto()
+
+# 示例数据集加载
+data_path <- system.file("extdata", "example.csv", package = "ggpca")
+example_data <- read.csv(data_path)
+example_data
+
+# 查看数据集的前几行
+head(example_data)
+
+pca_plot <- ggpca(
+  data = example_data,
+  point_size = 3.5,
+  color_palette = "Set2",
+  metadata_cols = c(1:6),      # 元数据列，用于分组
+  mode = "pca",               # 使用 PCA 模式
+  color_var = "group",        # 按 "group" 列着色
+  ellipse = TRUE,             # 添加置信椭圆
+  ellipse_level = 0.95,       # 椭圆置信水平
+  density_plot = "both",         # 添加密度图
+  title = "PCA 可视化",        # 标题
+  subtitle = "示例数据 - 按组分类", # 副标题
+  caption = "数据来源: 示例数据集"
+)
+
+# 打印图像
+print(pca_plot)
+
+tsne_plot <- ggpca(
+  data = example_data,
+  metadata_cols = c(1:6),       # 元数据列
+  mode = "tsne",               # 使用 t-SNE
+  color_var = "time",          # 按时间列着色
+  density_plot = "both",         # 添加密度图
+  tsne_perplexity = 30,        # 调整 perplexity 参数
+  title = "t-SNE 可视化",       # 标题
+  subtitle = "按时间分类",       # 副标题
+  caption = "数据来源: 示例数据集"
+)
+
+# 打印图像
+print(tsne_plot)
+
+umap_plot <- ggpca(
+  data = example_data,
+  metadata_cols = c(1:6),      # 元数据列
+  mode = "umap",              # 使用 UMAP
+  color_var = "group",        # 按组分类着色
+  umap_n_neighbors = 15,      # 调整邻居数
+  density_plot = "both",         # 添加密度图
+  title = "UMAP 可视化",       # 标题
+  subtitle = "分组展示",        # 副标题
+  caption = "数据来源: 示例数据集"
+)
+
+# 打印图像
+print(umap_plot)
+```
+
+```{r}
+pacman::p_load(showtext)
+showtext_auto()
+
+pca_data <- read.csv(system.file("extdata", "example.csv", package = "ggpca"))
+
+# 1. 先进行 PCA 分解
+pca_res <- prcomp(pca_data[, sapply(pca_data, is.numeric)], scale. = TRUE) # 只选择数值列
+
+# 2. 提取主成分（PC1 和 PC2）
+pca_scores <- as.data.frame(pca_res$x[, 1:2]) # 提取前两个主成分
+colnames(pca_scores) <- c("PC1", "PC2")       # 重命名为 PC1 和 PC2
+
+# 3. 合并主成分和元数据
+pca_scores$group <- pca_data$group # 替换为分类列的实际名称
+
+# 4. 使用 ggplot2 生成图
+pca_plot <- ggplot(data = pca_scores, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = group), size = 2, alpha = 0.7) + # 绘制数据点
+  stat_ellipse(
+    aes(fill = group, color = group), 
+    geom = "polygon", 
+    alpha = 0.3, 
+    type = "norm"
+  ) + # 绘制置信椭圆
+  # scale_fill_brewer(palette = "Set2") + # 调整颜色
+  # scale_color_brewer(palette = "Set2") +
+  theme_minimal() + # 优化主题
+  labs(
+    title = "PCA 图带填充置信椭圆",
+    x = "PC1 (主成分 1)", 
+    y = "PC2 (主成分 2)",
+    caption = "数据来源: 示例数据集"
+  )
+
+# 打印图像
+print(pca_plot)
+```
+
+```{r}
+# 加载必要的包
+library(ggpca)
+library(ggplot2)
+
+# 假设数据已经加载
+pca_data <- read.csv(system.file("extdata", "example.csv", package = "ggpca"))
+
+# 创建 PCA 图表
+pca_plot <- ggpca(
+  data = pca_data,
+  metadata_cols = c(1:6),        # 元数据列
+  mode = "pca",                 # 使用 PCA
+  color_var = "group",          # 按组分类着色
+  ellipse = TRUE,               # 添加置信椭圆
+  ellipse_level = 0.9,          # 置信水平 90%
+  density_plot = "both",        # 添加 X 和 Y 轴的密度曲线
+  point_alpha = 0.7,            # 设置点的透明度
+  point_size = 3.5,             # 设置点的大小
+  title = "PCA 图带置信椭圆和密度曲线", # 设置标题
+  subtitle = "示例数据按组分类",        # 副标题
+  caption = "数据来源: 示例数据集"       # 数据来源
+)
+
+# 打印图像
+print(pca_plot)
+
+pca_plot +
+  theme_minimal() +                    # 使用简洁主题
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, face = "italic"),
+    plot.caption = element_text(size = 10)
+  ) +
+    # stat_ellipse(data=pca_data, geom = "polygon", 
+    #            # 定义置信水平、线性
+    #            level=0.95, linetype = 2, 
+    #            # 定义粗细，透明度
+    #            size=0.5, alpha=0.1,
+    #            aes(fill=group)
+    #            )
+  scale_color_brewer(palette = "Set2") # 设置颜色调色板
+```
+
+
+
+
